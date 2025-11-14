@@ -44,11 +44,14 @@ export const initializeDatabase = async () => {
   await initDb();
 
   const User = (await import('../models/User.js')).default;
+  const VideoGame = (await import('../models/VideoGame.js')).default;
 
   User.createTable();
+  VideoGame.createTable();
   saveDatabase();
   if (config.isDevelopment()) {
     User.seed();
+    VideoGame.seed();
     saveDatabase();
   }
   console.log('Database initialization complete');
