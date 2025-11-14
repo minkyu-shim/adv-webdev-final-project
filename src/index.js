@@ -4,6 +4,7 @@ import { initializeDatabase } from './config/database.js';
 import logMiddleware from './middleware/logger.js';
 import { validateApiKey } from './middleware/apiKey.js';
 import userRoutes from './routes/userRoutes.js';
+import videoGameRoutes from './routes/videoGameRoutes.js';
 
 const app = express();
 
@@ -24,7 +25,7 @@ app.get('/', (req, res) => {
     message: 'Welcome to the API',
     version: '1.0.0',
     environment: config.nodeEnv,
-    endpoints: { users: '/users' }
+    endpoints: { users: '/users', videoGames: '/video-games' }
   });
 });
 
@@ -38,6 +39,7 @@ app.get('/health', (req, res) => {
 
 // Protected routes
 app.use('/users', validateApiKey, userRoutes);
+app.use('/video-games', validateApiKey, videoGameRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -69,6 +71,11 @@ app.listen(config.port, () => {
   console.log('  POST   /users         - Create user (protected)');
   console.log('  PUT    /users/:id     - Update user (protected)');
   console.log('  DELETE /users/:id     - Delete user (protected)');
+  console.log('  GET    /video-games         - List video games (protected)');
+  console.log('  GET    /video-games/:id     - Get video game (protected)');
+  console.log('  POST   /video-games         - Create video game (protected)');
+  console.log('  PUT    /video-games/:id     - Update video game (protected)');
+  console.log('  DELETE /video-games/:id     - Delete video game (protected)');
 });
 
 export default app;

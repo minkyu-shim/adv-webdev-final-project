@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Management System</title>
+    <title>Management System - Users & Video Games</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>User Management System</h1>
-            <p>Manage users with a secure REST API</p>
+            <h1>Management System</h1>
+            <p>Manage users and video games with a secure REST API</p>
         </div>
 
         <!-- API Key Section -->
@@ -56,6 +56,56 @@
                 <div class="loading">Loading users...</div>
             </div>
         </div>
+
+        <!-- Add Video Game Section -->
+        <div class="card">
+            <h2 class="section-title">
+                <span id="gameFormTitle">Add New Video Game</span>
+                <button class="btn btn-success hidden" id="cancelGameEditBtn" onclick="cancelGameEdit()">Cancel Edit</button>
+            </h2>
+            <form id="gameForm" onsubmit="handleGameSubmit(event)">
+                <input type="hidden" id="editGameId">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="gameTitle">Title</label>
+                        <input type="text" id="gameTitle" required placeholder="Enter game title">
+                    </div>
+                    <div class="form-group">
+                        <label for="gameGenre">Genre</label>
+                        <input type="text" id="gameGenre" placeholder="e.g., Action, RPG, Adventure">
+                    </div>
+                    <div class="form-group">
+                        <label for="gamePlatform">Platform</label>
+                        <input type="text" id="gamePlatform" placeholder="e.g., PC, PlayStation, Xbox">
+                    </div>
+                    <div class="form-group">
+                        <label for="gameReleaseYear">Release Year</label>
+                        <input type="number" id="gameReleaseYear" placeholder="e.g., 2024" min="1970" max="2100">
+                    </div>
+                    <div class="form-group">
+                        <label for="gameRating">Rating (0-10)</label>
+                        <input type="number" id="gameRating" step="0.1" min="0" max="10" placeholder="e.g., 9.5">
+                    </div>
+                    <div class="form-group">
+                        <label for="gamePrice">Price ($)</label>
+                        <input type="number" id="gamePrice" step="0.01" min="0" placeholder="e.g., 59.99">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="submitGameBtn">Add Video Game</button>
+            </form>
+            <div id="gameFormStatus" class="status-message"></div>
+        </div>
+
+        <!-- Video Games List Section -->
+        <div class="card">
+            <h2 class="section-title">
+                <span>Video Games List</span>
+                <button class="btn btn-primary" onclick="loadVideoGames()">Refresh</button>
+            </h2>
+            <div id="gamesContainer">
+                <div class="loading">Loading video games...</div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -66,6 +116,7 @@
         if (currentApiKey) {
             document.getElementById('apiKeyInput').value = currentApiKey;
             loadUsers();
+            loadVideoGames();
         }
 
         function saveApiKey() {
@@ -78,6 +129,7 @@
             localStorage.setItem('apiKey', apiKey);
             showStatus('apiKeyStatus', 'API key saved successfully!', 'success');
             loadUsers();
+            loadVideoGames();
         }
 
         function showStatus(elementId, message, type) {
@@ -229,6 +281,142 @@
                 loadUsers();
             } catch (error) {
                 showStatus('formStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Video Game Management Functions
+        async function loadVideoGames() {
+            const container = document.getElementById('gamesContainer');
+            container.innerHTML = '<div class="loading">Loading video games...</div>';
+
+            try {
+                const games = await fetchWithAuth(`${API_BASE_URL}/video-games`);
+
+                if (!games || games.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No video games found. Add your first game above!</div>';
+                    return;
+                }
+
+                const tableHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Genre</th>
+                                <th>Platform</th>
+                                <th>Year</th>
+                                <th>Rating</th>
+                                <th>Price</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${games.map(game => `
+                                <tr>
+                                    <td>${game.id}</td>
+                                    <td>${game.title}</td>
+                                    <td>${game.genre || '-'}</td>
+                                    <td>${game.platform || '-'}</td>
+                                    <td>${game.releaseYear || '-'}</td>
+                                    <td>${game.rating !== null ? game.rating : '-'}</td>
+                                    <td>${game.price !== null ? '$' + game.price.toFixed(2) : '-'}</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn btn-edit" onclick='editVideoGame(${JSON.stringify(game)})'>Edit</button>
+                                            <button class="btn btn-delete" onclick="deleteVideoGame(${game.id}, '${game.title.replace(/'/g, "\\'")}')">Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+
+                container.innerHTML = tableHTML;
+            } catch (error) {
+                container.innerHTML = `<div class="empty-state">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function handleGameSubmit(event) {
+            event.preventDefault();
+
+            const title = document.getElementById('gameTitle').value.trim();
+            const genre = document.getElementById('gameGenre').value.trim() || null;
+            const platform = document.getElementById('gamePlatform').value.trim() || null;
+            const releaseYear = document.getElementById('gameReleaseYear').value ? parseInt(document.getElementById('gameReleaseYear').value) : null;
+            const rating = document.getElementById('gameRating').value ? parseFloat(document.getElementById('gameRating').value) : null;
+            const price = document.getElementById('gamePrice').value ? parseFloat(document.getElementById('gamePrice').value) : null;
+            const gameId = document.getElementById('editGameId').value;
+
+            try {
+                if (gameId) {
+                    // Update existing game
+                    await fetchWithAuth(`${API_BASE_URL}/video-games/${gameId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ title, genre, platform, releaseYear, rating, price })
+                    });
+                    showStatus('gameFormStatus', 'Video game updated successfully!', 'success');
+                } else {
+                    // Create new game
+                    await fetchWithAuth(`${API_BASE_URL}/video-games`, {
+                        method: 'POST',
+                        body: JSON.stringify({ title, genre, platform, releaseYear, rating, price })
+                    });
+                    showStatus('gameFormStatus', 'Video game created successfully!', 'success');
+                }
+
+                // Reset form and reload games
+                document.getElementById('gameForm').reset();
+                document.getElementById('editGameId').value = '';
+                document.getElementById('gameFormTitle').textContent = 'Add New Video Game';
+                document.getElementById('submitGameBtn').textContent = 'Add Video Game';
+                document.getElementById('cancelGameEditBtn').classList.add('hidden');
+
+                loadVideoGames();
+            } catch (error) {
+                showStatus('gameFormStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        function editVideoGame(game) {
+            document.getElementById('editGameId').value = game.id;
+            document.getElementById('gameTitle').value = game.title;
+            document.getElementById('gameGenre').value = game.genre || '';
+            document.getElementById('gamePlatform').value = game.platform || '';
+            document.getElementById('gameReleaseYear').value = game.releaseYear || '';
+            document.getElementById('gameRating').value = game.rating || '';
+            document.getElementById('gamePrice').value = game.price || '';
+            document.getElementById('gameFormTitle').textContent = 'Edit Video Game';
+            document.getElementById('submitGameBtn').textContent = 'Update Video Game';
+            document.getElementById('cancelGameEditBtn').classList.remove('hidden');
+
+            // Scroll to form
+            document.getElementById('gameForm').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelGameEdit() {
+            document.getElementById('gameForm').reset();
+            document.getElementById('editGameId').value = '';
+            document.getElementById('gameFormTitle').textContent = 'Add New Video Game';
+            document.getElementById('submitGameBtn').textContent = 'Add Video Game';
+            document.getElementById('cancelGameEditBtn').classList.add('hidden');
+        }
+
+        async function deleteVideoGame(id, title) {
+            if (!confirm(`Are you sure you want to delete "${title}"?`)) {
+                return;
+            }
+
+            try {
+                await fetchWithAuth(`${API_BASE_URL}/video-games/${id}`, {
+                    method: 'DELETE'
+                });
+                showStatus('gameFormStatus', 'Video game deleted successfully!', 'success');
+                loadVideoGames();
+            } catch (error) {
+                showStatus('gameFormStatus', `Error: ${error.message}`, 'error');
             }
         }
     </script>
