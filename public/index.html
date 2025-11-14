@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>User Management System</h1>
+            <p>Manage users with a secure REST API</p>
+        </div>
+
+        <!-- API Key Section -->
+        <div class="card">
+            <h2 class="section-title">API Configuration</h2>
+            <div class="api-key-section">
+                <input type="password" id="apiKeyInput" placeholder="Enter your API key">
+                <button class="btn btn-primary" onclick="saveApiKey()">Save API Key</button>
+            </div>
+            <div id="apiKeyStatus" class="status-message"></div>
+        </div>
+
+        <!-- Add User Section -->
+        <div class="card">
+            <h2 class="section-title">
+                <span id="formTitle">Add New User</span>
+                <button class="btn btn-success hidden" id="cancelEditBtn" onclick="cancelEdit()">Cancel Edit</button>
+            </h2>
+            <form id="userForm" onsubmit="handleSubmit(event)">
+                <input type="hidden" id="editUserId">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="userName">Name</label>
+                        <input type="text" id="userName" required placeholder="Enter name">
+                    </div>
+                    <div class="form-group">
+                        <label for="userEmail">Email</label>
+                        <input type="email" id="userEmail" required placeholder="Enter email">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="submitBtn">Add User</button>
+            </form>
+            <div id="formStatus" class="status-message"></div>
+        </div>
+
+        <!-- Users List Section -->
+        <div class="card">
+            <h2 class="section-title">
+                <span>Users List</span>
+                <button class="btn btn-primary" onclick="loadUsers()">Refresh</button>
+            </h2>
+            <div id="usersContainer">
+                <div class="loading">Loading users...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.origin;
+        let currentApiKey = localStorage.getItem('apiKey') || '';
+
+        // Load API key from localStorage on page load
+        if (currentApiKey) {
+            document.getElementById('apiKeyInput').value = currentApiKey;
+            loadUsers();
+        }
+
+        function saveApiKey() {
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+            if (!apiKey) {
+                showStatus('apiKeyStatus', 'Please enter an API key', 'error');
+                return;
+            }
+            currentApiKey = apiKey;
+            localStorage.setItem('apiKey', apiKey);
+            showStatus('apiKeyStatus', 'API key saved successfully!', 'success');
+            loadUsers();
+        }
+
+        function showStatus(elementId, message, type) {
+            const statusEl = document.getElementById(elementId);
+            statusEl.textContent = message;
+            statusEl.className = `status-message ${type}`;
+            statusEl.style.display = 'block';
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 3000);
+        }
+
+        async function fetchWithAuth(url, options = {}) {
+            if (!currentApiKey) {
+                throw new Error('API key not set. Please configure your API key first.');
+            }
+
+            const headers = {
+                'X-API-Key': currentApiKey,
+                'Content-Type': 'application/json',
+                ...options.headers
+            };
+
+            const response = await fetch(url, { ...options, headers });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Request failed' }));
+                throw new Error(error.error || `HTTP ${response.status}`);
+            }
+
+            return response.json();
+        }
+
+        async function loadUsers() {
+            const container = document.getElementById('usersContainer');
+            container.innerHTML = '<div class="loading">Loading users...</div>';
+
+            try {
+                const users = await fetchWithAuth(`${API_BASE_URL}/users`);
+
+                if (!users || users.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No users found. Add your first user above!</div>';
+                    return;
+                }
+
+                const tableHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Created At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${users.map(user => `
+                                <tr>
+                                    <td>${user.id}</td>
+                                    <td>${user.name}</td>
+                                    <td>${user.email}</td>
+                                    <td>${new Date(user.created_at).toLocaleString()}</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn btn-edit" onclick="editUser(${user.id}, '${user.name.replace(/'/g, "\\'")}', '${user.email}')">Edit</button>
+                                            <button class="btn btn-delete" onclick="deleteUser(${user.id}, '${user.name.replace(/'/g, "\\'")}')">Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+
+                container.innerHTML = tableHTML;
+            } catch (error) {
+                container.innerHTML = `<div class="empty-state">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function handleSubmit(event) {
+            event.preventDefault();
+
+            const name = document.getElementById('userName').value.trim();
+            const email = document.getElementById('userEmail').value.trim();
+            const userId = document.getElementById('editUserId').value;
+
+            try {
+                if (userId) {
+                    // Update existing user
+                    await fetchWithAuth(`${API_BASE_URL}/users/${userId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ name, email })
+                    });
+                    showStatus('formStatus', 'User updated successfully!', 'success');
+                } else {
+                    // Create new user
+                    await fetchWithAuth(`${API_BASE_URL}/users`, {
+                        method: 'POST',
+                        body: JSON.stringify({ name, email })
+                    });
+                    showStatus('formStatus', 'User created successfully!', 'success');
+                }
+
+                // Reset form and reload users
+                document.getElementById('userForm').reset();
+                document.getElementById('editUserId').value = '';
+                document.getElementById('formTitle').textContent = 'Add New User';
+                document.getElementById('submitBtn').textContent = 'Add User';
+                document.getElementById('cancelEditBtn').classList.add('hidden');
+
+                loadUsers();
+            } catch (error) {
+                showStatus('formStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        function editUser(id, name, email) {
+            document.getElementById('editUserId').value = id;
+            document.getElementById('userName').value = name;
+            document.getElementById('userEmail').value = email;
+            document.getElementById('formTitle').textContent = 'Edit User';
+            document.getElementById('submitBtn').textContent = 'Update User';
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+
+            // Scroll to form
+            document.getElementById('userForm').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            document.getElementById('userForm').reset();
+            document.getElementById('editUserId').value = '';
+            document.getElementById('formTitle').textContent = 'Add New User';
+            document.getElementById('submitBtn').textContent = 'Add User';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+        }
+
+        async function deleteUser(id, name) {
+            if (!confirm(`Are you sure you want to delete user "${name}"?`)) {
+                return;
+            }
+
+            try {
+                await fetchWithAuth(`${API_BASE_URL}/users/${id}`, {
+                    method: 'DELETE'
+                });
+                showStatus('formStatus', 'User deleted successfully!', 'success');
+                loadUsers();
+            } catch (error) {
+                showStatus('formStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

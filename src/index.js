@@ -15,6 +15,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(logMiddleware);
 
+// Serve static files from public directory
+app.use(express.static('public'));
+
 // Public routes
 app.get('/', (req, res) => {
   res.json({
