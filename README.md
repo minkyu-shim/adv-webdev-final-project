@@ -88,3 +88,28 @@ curl -X POST -H "Content-Type: application/json" \
    ```bash
    curl -H "X-API-Key: yourkey" http://localhost:3000/users
    ```
+
+## CI and Renovate
+
+### Continuous Integration (GitHub Actions)
+This repository includes a CI workflow at `.github/workflows/ci.yml` that runs on every push and pull request.
+It performs:
+- `npm ci`
+- `npm run build` only when a `build` script exists
+- `npm test` only when a `test` script exists
+- `npm run lint` only when a `lint` script exists
+
+### Renovate
+This repository includes:
+- Renovate config at `renovate.json`
+- Renovate workflow at `.github/workflows/renovate.yml` (scheduled + manual dispatch)
+
+To enable Renovate PR creation via GitHub Actions:
+1. Create a GitHub Personal Access Token with `repo` scope for a bot/user account.
+2. Add it as repository secret `RENOVATE_TOKEN`.
+3. Run the **Renovate** workflow manually (`workflow_dispatch`) or wait for the schedule.
+
+Expected evidence after enabling token:
+- A **Dependency Dashboard** issue created by Renovate.
+- One or more dependency update PRs labeled `dependencies` and `renovate`.
+- CI (`CI` workflow) automatically running on those Renovate PRs.
